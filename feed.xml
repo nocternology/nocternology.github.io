@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>/dev/self</title>
+    <description>Random computer security and sysadmin stuff.</description>
+    <link>http://selfaoui.info/</link>
+    <atom:link href="http://selfaoui.info/feed.xml" rel="self" type="application/rss+xml" />
+    
+      <item>
+        <title>SSH Pubkey authentication using LDAP</title>
+        <description>&lt;p&gt;In one of my class’s assignement, I was asked to pair a hardened SSH server
+with an LDAP directory to authenticate users using their public key.
+The keys are supposed to be stored in the LDAP directory for means of easy
+management and centralization.&lt;/p&gt;
+
+&lt;p&gt;All we need for this to work is :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;an LDAP directory (OpenLDAP for example),&lt;/li&gt;
+  &lt;li&gt;an SSH box with OpenSSH,&lt;/li&gt;
+  &lt;li&gt;ldap-search utility that can be found in the packet ‘ldap-utils’.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&quot;adapting-the-ldap-directory-to-store-public-keys&quot;&gt;Adapting the LDAP directory to store public keys&lt;/h1&gt;
+&lt;p&gt;Here we are using a generic OpenLDAP directory. By default, it doesn’t come
+with the schema to manage public keys. However, we can take the schema from
+the openssh-ldap packet on any CentOS/Fedora distribution.&lt;/p&gt;
+
+&lt;h1 id=&quot;using-the-public-key-to-authenticate-from-ssh&quot;&gt;Using the public key to authenticate from SSH&lt;/h1&gt;
+&lt;p&gt;OpenSSH server comes with a handy directive that will allow the server to
+get the public key of the connecting user from another source, rather than the
+classical ‘.ssh/authorized_keys’.&lt;/p&gt;
+
+&lt;p&gt;What we need here is :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;getting the public key from the LDAP directory using a scripted version of
+ldap-search command,&lt;/li&gt;
+  &lt;li&gt;modifying the configuration of the SSH server to use the script.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;getting-the-public-key-from-the-ldap-directory&quot;&gt;Getting the public key from the LDAP directory&lt;/h2&gt;
+&lt;p&gt;For this to work, we need a quick and dirty shell script that :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;gets the key for a specific user as argv[0],&lt;/li&gt;
+  &lt;li&gt;cleans the ldap-search output to give us only the public key,&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;We can use an adapted script from as follows :&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;ldapsearch -H ldap://ldap.projet.local/ -xLLL -b &lt;span class=&quot;nv&quot;&gt;dc&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;projet,dc&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;local &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;uid&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$1&lt;/span&gt; sshPublicKey | &lt;span class=&quot;se&quot;&gt;\&lt;/span&gt;
+sed -n &lt;span class=&quot;s1&quot;&gt;&#39;/^ /{H;d};/sshPublicKey:/x;$g;s/\n *//g;s/sshPublicKey: //gp&#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;You should adapt :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;the -H argument as the address of your LDAP directory,&lt;/li&gt;
+  &lt;li&gt;the -b argument as the root of where to search for users&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;configuring-openssh-server-with-the-script-as-a-key-provider&quot;&gt;Configuring OpenSSH server with the script as a key provider&lt;/h2&gt;
+&lt;p&gt;In our OpenSSH configuration, we add those two lines :&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;AuthorizedKeysCommand /root/ldap-get-pubkey.sh
+AuthorizedKeysCommandUser root&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;The first directive is the path to the script, which should be executable.
+The second one is the user that will execute the script. You can try to use a
+user that’s sole purpose is to execute the script.
+The script is basically just an ldap-search call, so no particular privileges are
+needed.&lt;/p&gt;
+
+&lt;p&gt;To test the script, all you have to do is run it with an already existing user from
+your LDAP directory as the first argument :&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;./ldap-get-pubkey.sh yourusername&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;All you have to do now is restarting your SSH server :&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;service sshd restart
+&lt;span class=&quot;c&quot;&gt;# OR&lt;/span&gt;
+systemctl restart sshd&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h1 id=&quot;whats-next-to-do&quot;&gt;What’s next to do&lt;/h1&gt;
+&lt;p&gt;All you need to do now is :&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;secure your SSH box, disallow password authentication and root connection, and
+then close any unwanted ports. The SSH box should be only used for SSH connections.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;complete your system configuration for any NFS/LDAP usage; this includes automated
+home mounting using autofs, etc.&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+</description>
+        <pubDate>Sun, 20 Dec 2015 00:00:00 +0100</pubDate>
+        <link>http://selfaoui.info/articles/2015/12/20/ssh-auth-ldap/</link>
+        <guid isPermaLink="true">http://selfaoui.info/articles/2015/12/20/ssh-auth-ldap/</guid>
+      </item>
+    
+  </channel>
+</rss>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>SSH Pubkey authentication using LDAP &#8211; /dev/self</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Random computer security and sysadmin stuff.">
+    <meta name="author" content="Nabil Selfaoui">
+    <meta name="keywords" content="articles">
+    <link rel="canonical" href="http://selfaoui.info/articles/2015/12/20/ssh-auth-ldap/">
+    <link rel="alternate" type="application/rss+xml" title="RSS Feed for /dev/self" href="/feed.xml" />
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/pixyll.css?201512291230" type="text/css">
+
+    <!-- Fonts -->
+    <link href='//fonts.googleapis.com/css?family=Merriweather:900,900italic,300,300italic' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Lato:900,300' rel='stylesheet' type='text/css'>
+    
+      <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css" rel="stylesheet">
+    
+
+    <!-- Verifications -->
+    
+
+    <!-- Open Graph -->
+    <!-- From: https://github.com/mmistakes/hpstr-jekyll-theme/blob/master/_includes/head.html -->
+    <meta property="og:locale" content="en_US">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="SSH Pubkey authentication using LDAP">
+    <meta property="og:description" content="Random computer security and sysadmin stuff.">
+    <meta property="og:url" content="http://selfaoui.info/articles/2015/12/20/ssh-auth-ldap/">
+    <meta property="og:site_name" content="/dev/self">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    
+    <meta name="twitter:title" content="SSH Pubkey authentication using LDAP" />
+    <meta name="twitter:description" content="Random computer security and sysadmin stuff." />
+    <meta name="twitter:url" content="http://selfaoui.info/articles/2015/12/20/ssh-auth-ldap/" />
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" sizes="57x57" href="/apple-touch-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="/apple-touch-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="/apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="/apple-touch-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="/apple-touch-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="/apple-touch-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png">
+    <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
+    <link rel="icon" type="image/png" href="/favicon-160x160.png" sizes="160x160">
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/png" href="/favicon-16x16.png" sizes="16x16">
+    <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32">
+
+    
+</head>
+
+<body class="site animated fade-in-down">
+
+	
+
+  <div class="site-wrap">
+    <header class="site-header px2 px-responsive">
+  <div class="mt2 wrap">
+    <div class="measure">
+      <a href="http://selfaoui.info" class="site-title">/dev/self</a>
+      <nav class="site-nav">
+        
+      </nav>
+      <div class="clearfix"></div>
+      
+        <div class="social-icons">
+  <div class="social-icons-right">
+    
+      <a class="fa fa-github" href="https://github.com/nocternology"></a>
+    
+    
+    
+    <a class="fa fa-rss" href="/feed.xml"></a>
+    
+    
+    
+      <a class="fa fa-envelope" href="mailto:nabil@selfaoui.info"></a>
+    
+    
+    
+    
+  </div>
+  <div class="right">
+    
+    
+    
+  </div>
+</div>
+<div class="clearfix"></div>
+
+      
+    </div>
+  </div>
+</header>
+
+
+    <div class="post p2 p-responsive wrap" role="main">
+      <div class="measure">
+        
+
+
+<div class="post-header mb2">
+  <h1>SSH Pubkey authentication using LDAP</h1>
+  <span class="post-meta">Dec 20, 2015</span><br>
+  
+  <span class="post-meta small">
+  
+    2 minute read
+  
+  </span>
+</div>
+
+<article class="post-content">
+  <p>In one of my class’s assignement, I was asked to pair a hardened SSH server
+with an LDAP directory to authenticate users using their public key.
+The keys are supposed to be stored in the LDAP directory for means of easy
+management and centralization.</p>
+
+<p>All we need for this to work is :</p>
+
+<ul>
+  <li>an LDAP directory (OpenLDAP for example),</li>
+  <li>an SSH box with OpenSSH,</li>
+  <li>ldap-search utility that can be found in the packet ‘ldap-utils’.</li>
+</ul>
+
+<h1 id="adapting-the-ldap-directory-to-store-public-keys">Adapting the LDAP directory to store public keys</h1>
+<p>Here we are using a generic OpenLDAP directory. By default, it doesn’t come
+with the schema to manage public keys. However, we can take the schema from
+the openssh-ldap packet on any CentOS/Fedora distribution.</p>
+
+<h1 id="using-the-public-key-to-authenticate-from-ssh">Using the public key to authenticate from SSH</h1>
+<p>OpenSSH server comes with a handy directive that will allow the server to
+get the public key of the connecting user from another source, rather than the
+classical ‘.ssh/authorized_keys’.</p>
+
+<p>What we need here is :</p>
+
+<ul>
+  <li>getting the public key from the LDAP directory using a scripted version of
+ldap-search command,</li>
+  <li>modifying the configuration of the SSH server to use the script.</li>
+</ul>
+
+<h2 id="getting-the-public-key-from-the-ldap-directory">Getting the public key from the LDAP directory</h2>
+<p>For this to work, we need a quick and dirty shell script that :</p>
+
+<ul>
+  <li>gets the key for a specific user as argv[0],</li>
+  <li>cleans the ldap-search output to give us only the public key,</li>
+</ul>
+
+<p>We can use an adapted script from as follows :</p>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash">ldapsearch -H ldap://ldap.projet.local/ -xLLL -b <span class="nv">dc</span><span class="o">=</span>projet,dc<span class="o">=</span><span class="nb">local </span><span class="nv">uid</span><span class="o">=</span><span class="nv">$1</span> sshPublicKey | <span class="se">\</span>
+sed -n <span class="s1">'/^ /{H;d};/sshPublicKey:/x;$g;s/\n *//g;s/sshPublicKey: //gp'</span></code></pre></figure>
+
+<p>You should adapt :</p>
+
+<ul>
+  <li>the -H argument as the address of your LDAP directory,</li>
+  <li>the -b argument as the root of where to search for users</li>
+</ul>
+
+<h2 id="configuring-openssh-server-with-the-script-as-a-key-provider">Configuring OpenSSH server with the script as a key provider</h2>
+<p>In our OpenSSH configuration, we add those two lines :</p>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash">AuthorizedKeysCommand /root/ldap-get-pubkey.sh
+AuthorizedKeysCommandUser root</code></pre></figure>
+
+<p>The first directive is the path to the script, which should be executable.
+The second one is the user that will execute the script. You can try to use a
+user that’s sole purpose is to execute the script.
+The script is basically just an ldap-search call, so no particular privileges are
+needed.</p>
+
+<p>To test the script, all you have to do is run it with an already existing user from
+your LDAP directory as the first argument :</p>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash">./ldap-get-pubkey.sh yourusername</code></pre></figure>
+
+<p>All you have to do now is restarting your SSH server :</p>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash">service sshd restart
+<span class="c"># OR</span>
+systemctl restart sshd</code></pre></figure>
+
+<h1 id="whats-next-to-do">What’s next to do</h1>
+<p>All you need to do now is :</p>
+
+<ol>
+  <li>
+    <p>secure your SSH box, disallow password authentication and root connection, and
+then close any unwanted ports. The SSH box should be only used for SSH connections.</p>
+  </li>
+  <li>
+    <p>complete your system configuration for any NFS/LDAP usage; this includes automated
+home mounting using autofs, etc.</p>
+  </li>
+</ol>
+
+</article>
+
+
+
+
+
+
+
+
+
+
+
+      </div>
+    </div>
+  </div>
+
+  <footer class="center">
+  <div class="measure">
+    <small>
+      selfaoui.info © 2015 - Made using <a href="http://jekyllrb.com">Jekyll</a> - Theme <a href="https://github.com/johnotander/pixyll">Pixyll</a>
+    </small>
+  </div>
+</footer>
+
+</body>
+</html>
